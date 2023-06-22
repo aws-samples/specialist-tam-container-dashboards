@@ -19,7 +19,7 @@ This query examines one of the most common scalability concerns that we see in K
 As written, this query limits the results to the top 10 user agents. Feel free to remove that limit to see a ranking from all query sources. We’re filtering on LIST operations because they tend to be the most problematic, but you can expand the results to all queries if you remove the “verb” filter.
 
 ```
-filter *@logStream* like "kube-apiserver-audit"
+filter @logStream like "kube-apiserver-audit"
 | filter ispresent(requestURI)
 | filter verb = "list"
 | filter requestURI like "/api/v1/pods"
@@ -39,8 +39,8 @@ The results of this query ranks each URI (Kubernetes API endpoint) by latency, g
 
 
 ```
-fields *@timestamp*, *@message*
-| filter *@logStream* like "kube-apiserver-audit"
+fields @timestamp, @message
+| filter @logStream like "kube-apiserver-audit"
 | filter ispresent(requestURI)
 | filter verb = "list"
 | filter verb not like "watch"
@@ -77,8 +77,8 @@ fields @timestamp, @message
 This query simply counts the total number of API queries made by each client (consolidated by user agent) against the Kubernetes API.
 
 ```
-fields userAgent, requestURI, *@timestamp*, *@message*
-| filter *@logStream* ~= "kube-apiserver-audit"
+fields userAgent, requestURI, @timestamp, @message
+| filter @logStream ~= "kube-apiserver-audit"
 | stats count(userAgent) as count by userAgent
 | sort count desc
 ```
@@ -91,8 +91,8 @@ fields userAgent, requestURI, *@timestamp*, *@message*
 This query gives a number of filter examples that will help you investigate queries against specific URIs within the Kubernetes API. For example, if you want to see all the queries making actions against a replica set, or every API query that describes a cron job. These can be helpful deeper into an investigation when you’ve narrowed down a problem to a specific component or URI.
 
 ```
-fields *@timestamp*, *@message*, *@logStream*, requestURI, verb
-| filter *@logStream* =~ "kube-apiserver-audit"
+fields @timestamp, @message, @logStream, requestURI, verb
+| filter @logStream =~ "kube-apiserver-audit"
 # | filter strcontains(requestURI, "/apis/coordination.k8s.io/v1beta1/namespaces/kube-node-lease/leases/ip")
 # | filter strcontains(requestURI, "/apis/autoscaling/v1/namespaces/default/horizontalpodautoscalers/")
 # | filter requestURI like /\/apis\/apps\/v1\/namespaces\/.*\/deployments/
@@ -103,7 +103,7 @@ fields *@timestamp*, *@message*, *@logStream*, requestURI, verb
 # | filter verb != "get"
 # | filter verb != "watch"
 # | filter verb != "list"
-| display *@logStream*, requestURI, verb
+| display @logStream, requestURI, verb
 | stats count(*) as count by requestURI, verb
 | sort count desc
 ```
@@ -116,7 +116,7 @@ This query shows you the most common identical queries that are happening on you
 
 ```
 fields requestURI, verb, responseStatus.code, userAgent
-| filter *@logStream* like "kube-apiserver-audit"
+| filter @logStream like "kube-apiserver-audit"
 # | filter verb != "get"
 # | filter verb != "watch"
 # | filter verb != "list"
@@ -131,7 +131,7 @@ This query shows all of the HTTP status 500 errors returned by your Kubernetes A
 
 ```
 stats count(*) as count by requestURI, verb, responseStatus.code, userAgent
-| filter *@logStream* =~ "kube-apiserver-audit"
+| filter @logStream =~ "kube-apiserver-audit"
 | filter responseStatus.code >= 500 
 | sort count desc
 ```
@@ -145,7 +145,7 @@ This query shows all of the HTTP status 400 errors returned by your Kubernetes A
 
 ```
 stats count(*) as count by requestURI, verb, responseStatus.code, userAgent
-| filter *@logStream* =~ "kube-apiserver-audit"
+| filter @logStream =~ "kube-apiserver-audit"
 | filter responseStatus.code >= 400
 | filter responseStatus.code < 500
 | sort count desc
@@ -203,11 +203,11 @@ filter @logStream like /^kube-apiserver-audit/
 Report any API endpoint health check failures. See: https://kubernetes.io/docs/reference/using-api/health-checks/
 
 ```
-fields *@message*
-| sort *@timestamp* asc
-| filter *@logStream* like "kube-apiserver"
-| filter *@logStream* not like "kube-apiserver-audit"
-| filter *@message* like "healthz check failed"
+fields @message
+| sort @timestamp asc
+| filter @logStream like "kube-apiserver"
+| filter @logStream not like "kube-apiserver-audit"
+| filter @message like "healthz check failed"
 ```
 
 
@@ -218,8 +218,8 @@ fields *@message*
 Use this query to identify what clients are making modifications to secrets. 
 
 ```
-fields userAgent, requestURI, *@timestamp*, *@message*
-| filter *@logStream* like "kube-apiserver-audit"
+fields userAgent, requestURI, @timestamp, @message
+| filter @logStream like "kube-apiserver-audit"
 | filter objectRef.resource = "secrets"
 | filter verb != "list"
 | filter verb != "watch"
@@ -256,8 +256,8 @@ filter @logStream like "kube-apiserver-audit"
 This query shows the updates and modifications to a specific object (like a Replicaset, deployment, or pods)
 
 ```
-fields stageTimestamp, requestURI, verb, responseStatus.code, userAgent, *@message*
-| filter *@logStream* like "kube-apiserver-audit"
+fields stageTimestamp, requestURI, verb, responseStatus.code, userAgent, @message
+| filter @logStream like "kube-apiserver-audit"
 | filter objectRef.name like "ResourceName"
 # | filter verb != "get"
 # | filter verb != "watch"
@@ -272,10 +272,10 @@ fields stageTimestamp, requestURI, verb, responseStatus.code, userAgent, *@messa
 Show any unscheduled pods on your cluster. You can optionally filter for a specific pod name to narrow down the results.
 
 ```
-fields timestamp, pod, err, *@message*
-| filter *@logStream* like "scheduler"
-| filter *@message* like "Unable to schedule pod"
-| parse *@message*  /^.(?<date>\d{4})\s+(?<timestamp>\d+:\d+:\d+\.\d+)\s+\S*\s+\S+\]\s\"(.*?)\"\s+pod=(?<pod>\"(.*?)\")\s+err=(?<err>\"(.*?)\")/
+fields timestamp, pod, err, @message
+| filter @logStream like "scheduler"
+| filter @message like "Unable to schedule pod"
+| parse @message  /^.(?<date>\d{4})\s+(?<timestamp>\d+:\d+:\d+\.\d+)\s+\S*\s+\S+\]\s\"(.*?)\"\s+pod=(?<pod>\"(.*?)\")\s+err=(?<err>\"(.*?)\")/
 # | filter pod like "PODNAME"
 | count(*) as count by pod, err
 | sort count desc
@@ -290,7 +290,7 @@ Show any throttle warnings in the Kubernetes audit logs:
 https://github.com/kubernetes/kubernetes/issues/95212
 
 ```
-filter *@message* like "Throttling request"
+filter @message like "Throttling request"
 ```
 
 
@@ -300,11 +300,11 @@ filter *@message* like "Throttling request"
 Similar to the query on scheduler logs you can see the number of times each pod has been evaluated as unschedulable by the cluster
 
 ```
-fields requestURI, *@message*
-| filter *@logStream* like "kube-apiserver-audit"
+fields requestURI, @message
+| filter @logStream like "kube-apiserver-audit"
 | filter requestURI like /pods/
 | filter verb like /patch/
-| filter *@message* like /Unschedulable/
+| filter @message like /Unschedulable/
 # | filter count > 2
 | stats count(*) as count by requestURI
 | sort count desc
@@ -315,11 +315,11 @@ fields requestURI, *@message*
 ## Find the top pods by the number of updates caused by restart events
 
 ```
-fields requestURI, *@message*
-| filter *@logStream* like "kube-apiserver-audit"
+fields requestURI, @message
+| filter @logStream like "kube-apiserver-audit"
 | filter requestURI like /pods/
 | filter verb like /patch/
-| parse *@message* '*restartCount":*,"started"*' as head, restarts, tail
+| parse @message '*restartCount":*,"started"*' as head, restarts, tail
 | filter restarts > 2
 | sort restarts desc
 | display requestURI, restarts
@@ -333,12 +333,12 @@ This is a bit janky but with the power of string parsing we should be able to pu
 **This may not be exact and could be off entirely depending on the string parsing. I use this as a tool to compare or get an idea of the size, validate by comparing** 
 
 ```
-parse *@message* '*requestObject":*"spec":*"responseObject"*' as head, meta, spec, tail
+parse @message '*requestObject":*"spec":*"responseObject"*' as head, meta, spec, tail
 | fields responseObject.metadata.name,  strlen(spec) as len
 | filter verb like /create/
 | filter objectRef.resource like /pods/
 | filter requestObject.kind like /Pod/
-| display responseObject.metadata.name, len, *@message*
+| display responseObject.metadata.name, len, @message
 | sort len desc
 ```
 
