@@ -329,17 +329,22 @@ fields requestURI, @message
 
 ## Calculate the size of an object from the Create call
 
-This is a bit janky but with the power of string parsing we should be able to pull out just the “pod spec” from a create call. Then using the `strlen()` function we can get the length in Unicode chars (and since we expect ASCII chars in the spec we can roughly assume ~1byte to a char)
-**This may not be exact and could be off entirely depending on the string parsing. I use this as a tool to compare or get an idea of the size, validate by comparing** 
+This is a bit janky but with the power of string parsing we should be able to pull out just the “pod (or node) spec” from a create call. Then using the `strlen()` function we can get the length in Unicode chars (and since we expect ASCII chars in the spec we can roughly assume ~1byte to a char). It will not work for K8s objects like secrets or configmaps because EKS Audit policy omits the ***RequestReceived*** stage to protect sensitive data.
+**This may not be exact and could be off depending on the string parsing. Use this as a tool to compare or get an idea of the size, validate by comparing** 
 
 ```
-parse @message '*requestObject":*"spec":*"responseObject"*' as head, meta, spec, tail
-| fields responseObject.metadata.name,  strlen(spec) as len
+filter @logStream like "kube-apiserver-audit"
+| parse @message '*"responseObject":*' as meta, spec
+| fields responseObject.metadata.name, strlen(spec) as objSize
 | filter verb like /create/
-| filter objectRef.resource like /pods/
-| filter requestObject.kind like /Pod/
-| display responseObject.metadata.name, len, @message
-| sort len desc
+| filter objectRef.resource = “pods”
+#| filter objectRef.resource = “nodes”
+| filter requestObject.kind = “Pod”
+#| filter requestObject.kind = “Node”
+| display responseObject.metadata.name, objSize
+# for debugging
+#| display responseObject.metadata.name, objSize, strlen(@message) as messSize, spec as objSpec
+| sort objSize desc
 ```
 
 
